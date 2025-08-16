@@ -1,12 +1,17 @@
 import os
 import uuid
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import gspread
 import pandas as pd
+import logging
+
+# ตั้งค่า Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # -----------------------------
 # การตั้งค่า
@@ -45,7 +50,7 @@ def login(auth: AuthRequest):
     else:
         raise HTTPException(status_code=401, detail="Invalid password")
 
-def get_current_user(token: str = Depends(lambda t: t)):
+def get_current_user(token: str):
     if token not in active_tokens:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return token
@@ -59,15 +64,18 @@ worksheet = None
 def startup_event():
     global worksheet
     try:
-        if not SHEET_ID:
-            raise RuntimeError("Missing SHEET_ID env var")
+        if not os.path.exists(CREDS_FILE):
+            logger.error(f"❌ ไม่พบไฟล์ Credentials: {CREDS_FILE}")
+            raise RuntimeError(f"Missing credentials file: {CREDS_FILE}")
 
         gc = gspread.service_account(filename=CREDS_FILE)
         spreadsheet = gc.open_by_key(SHEET_ID)
         worksheet = spreadsheet.sheet1
-        print("✅ เชื่อมต่อ Google Sheets สำเร็จ!")
+        logger.info("✅ เชื่อมต่อ Google Sheets สำเร็จ!")
     except Exception as e:
-        print(f"❌ ไม่สามารถเชื่อมต่อ Google Sheets ได้: {e}")
+        logger.error(f"❌ ไม่สามารถเชื่อมต่อ Google Sheets ได้: {e}")
+        # Raise exception to prevent server from starting with a broken connection
+        raise RuntimeError("Failed to connect to Google Sheets") from e
 
 # -----------------------------
 # Models
@@ -92,6 +100,10 @@ def health_check():
 @app.get("/get-task")
 def get_task(interpreter_name: str, token: str = Depends(get_current_user)):
     try:
+        # Check for worksheet connection before proceeding
+        if worksheet is None:
+            raise HTTPException(status_code=503, detail="Service Unavailable: Not connected to Google Sheet")
+
         header = worksheet.row_values(1)
         required_cols = ['ชื่อไฟล์', 'file_id', 'ความยาว(วินาที)', 'คำแปล', 'สถานะ', 'ผู้แปล']
 
@@ -110,11 +122,8 @@ def get_task(interpreter_name: str, token: str = Depends(get_current_user)):
         if pending.empty:
             return {"message": "ไม่มีไฟล์ที่ต้องแปลเหลือแล้ว"}
 
-        # เลือกแถวแรกที่ยังไม่ได้แปล
         task_row = pending.iloc[0]
-        
-        # ค้นหา index ของแถวที่เลือกใน dataframe
-        current_index = df[df['สถานะ'] == ""].index[0]
+        current_index = df.index[df['สถานะ'] == ""].tolist()[0]
         total_files = len(df)
         
         task = {
@@ -125,20 +134,26 @@ def get_task(interpreter_name: str, token: str = Depends(get_current_user)):
             "total_files": total_files
         }
 
-        return task
+        return JSONResponse(content=task)
 
     except Exception as e:
+        logger.error(f"Error fetching task: {e}")
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดในการโหลดงาน: {e}")
 
 @app.post("/save-task")
 def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
     try:
+        # Check for worksheet connection before proceeding
+        if worksheet is None:
+            raise HTTPException(status_code=503, detail="Service Unavailable: Not connected to Google Sheet")
+            
         df = pd.DataFrame(worksheet.get_all_records())
         
-        # ค้นหาแถวที่ตรงกับ filename
+        if save_req.filename not in df['ชื่อไฟล์'].values:
+            raise HTTPException(status_code=404, detail="ไม่พบชื่อไฟล์ในชีต")
+
         row_index = df.index[df['ชื่อไฟล์'] == save_req.filename][0] + 2
 
-        # อัปเดตข้อมูลในชีต
         worksheet.update_cell(row_index, df.columns.get_loc("คำแปล") + 1, save_req.translation)
         worksheet.update_cell(row_index, df.columns.get_loc("สถานะ") + 1, "แปลแล้ว")
         worksheet.update_cell(row_index, df.columns.get_loc("ผู้แปล") + 1, save_req.interpreter_name)
@@ -146,6 +161,7 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
         return {"success": True, "message": "บันทึกข้อมูลเรียบร้อย"}
 
     except Exception as e:
+        logger.error(f"Error saving task: {e}")
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดในการบันทึก: {e}")
 
 # -----------------------------
@@ -154,4 +170,4 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
 if os.path.isdir("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 else:
-    print("⚠️ ไม่มีโฟลเดอร์ static — ข้ามการ mount")
+    logger.warning("⚠️ ไม่มีโฟลเดอร์ static — ข้ามการ mount")

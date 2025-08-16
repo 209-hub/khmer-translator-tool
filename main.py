@@ -59,6 +59,9 @@ worksheet = None
 def startup_event():
     global worksheet
     try:
+        if not SHEET_ID:
+            raise RuntimeError("Missing SHEET_ID env var")
+
         gc = gspread.service_account(filename=CREDS_FILE)
         spreadsheet = gc.open_by_key(SHEET_ID)
         worksheet = spreadsheet.sheet1
@@ -80,6 +83,11 @@ class SaveRequest(BaseModel):
 @app.get("/")
 def serve_index():
     return FileResponse("translator_tool.html")
+
+@app.get("/health")
+def health_check():
+    """Endpoint สำหรับตรวจสอบสถานะของแอปพลิเคชัน"""
+    return {"status": "ok"}
 
 @app.get("/get-task")
 def get_task(interpreter_name: str, token: str = Depends(get_current_user)):

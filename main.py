@@ -11,7 +11,7 @@ import pandas as pd
 # -----------------------------
 # การตั้งค่า
 # -----------------------------
-SHEET_ID = os.getenv("16A5NmlSL40z72czwpqxQXRvnyVc9rsLK")  # ใส่ ID ของ Google Sheet (env var)
+SHEET_ID = os.getenv("16A5NmlSL40z72czwpqxQXRvnyVc9rsLK")  # ต้องใส่ค่าใน Environment Variables
 CREDS_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
 APP_PASSWORD = os.getenv("APP_PASSWORD", "default_password_123")
 
@@ -87,11 +87,11 @@ def serve_index():
 @app.get("/get-task")
 def get_task(token: str = Depends(get_current_user)):
     try:
-        # อ่านข้อมูล
+        # อ่านหัวคอลัมน์
         header = worksheet.row_values(1)
         required_cols = ['ชื่อไฟล์','ความยาว(วินาที)','คำแปล','file_id','สถานะ']
 
-        # เติมหัวข้อที่หาย
+        # ถ้ายังไม่มีคอลัมน์ก็เพิ่ม
         for col in required_cols:
             if col not in header:
                 header.append(col)
@@ -135,6 +135,9 @@ def update_task(update: TaskUpdate, token: str = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 # -----------------------------
-# Static files
+# Static files (กันพังถ้าไม่มีโฟลเดอร์)
 # -----------------------------
-app.mount("/static", StaticFiles(directory="static"), name="static")
+if os.path.isdir("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+else:
+    print("⚠️ ไม่มีโฟลเดอร์ static — ข้ามการ mount")

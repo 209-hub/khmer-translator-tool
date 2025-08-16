@@ -2,22 +2,33 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>เครื่องมือช่วยแปลเสียง (v3.0)</title>
+    <title>เครื่องมือช่วยแปลเสียง (v4.0 - Secure)</title>
     <style>
         body { font-family: Tahoma, sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
-        #container { max-width: 800px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        h1, h3 { text-align: center; } #audio-player { width: 100%; margin: 1em 0; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h3 { text-align: center; }
+        input[type="password"], input[type="text"] { width: 95%; padding: 10px; font-size: 1.1em; margin-bottom: 1em; }
+        #audio-player { width: 100%; margin: 1em 0; }
         #translation-input { width: 95%; padding: 10px; font-size: 1.2em; margin-bottom: 1em; }
         button { padding: 10px 15px; font-size: 1em; margin: 0 5px; cursor: pointer; border-radius: 5px; border: 1px solid #ccc; }
-        #record-btn { background-color: #e74c3c; color: white; border-color: #c0392b; }
+        #login-btn { background-color: #2ecc71; color: white; }
+        #record-btn { background-color: #e74c3c; color: white; }
         #record-btn.recording { background-color: #c0392b; }
-        #nav-btn-container, #reset-container { text-align: center; margin-top: 1em; }
+        #nav-btn-container, #reset-container, #login-container { text-align: center; margin-top: 1em; }
         #progress { font-size: 1.2em; font-weight: bold; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <div id="container">
-        <h1>เครื่องมือช่วยแปลเสียง (v3.0)</h1>
+    <div id="login-container" class="container">
+        <h1>กรุณาใส่รหัสผ่าน</h1>
+        <input type="password" id="password-input" placeholder="รหัสผ่าน...">
+        <button id="login-btn">เข้าสู่ระบบ</button>
+        <p id="login-error" style="color: red;"></p>
+    </div>
+
+    <div id="main-container" class="container hidden">
+        <h1>เครื่องมือช่วยแปลเสียง</h1>
         <h3 id="progress">กำลังโหลด...</h3>
         <p><strong>ชื่อไฟล์:</strong> <span id="filename-display"></span></p>
         <p><strong>ความยาว:</strong> <span id="duration-display"></span> วินาที</p>
@@ -27,14 +38,15 @@
             <button id="record-btn">🎤 พูด</button>
             <button id="next-btn">บันทึกและไฟล์ถัดไป ▶</button>
         </div>
-        <div id="reset-container">
-            <hr style="margin-top: 2em;">
-            <button id="reset-btn">ข้ามไปไฟล์ที่ยังไม่แปลไฟล์แรก</button>
-        </div>
     </div>
 
     <script>
-        let currentTask = {}; let interpreterName = '';
+        let currentTask = {}; let interpreterName = ''; let sessionToken = '';
+        const loginContainer = document.getElementById('login-container');
+        const mainContainer = document.getElementById('main-container');
+        const passwordInput = document.getElementById('password-input');
+        const loginBtn = document.getElementById('login-btn');
+        const loginError = document.getElementById('login-error');
         const progressEl = document.getElementById('progress');
         const filenameEl = document.getElementById('filename-display');
         const durationEl = document.getElementById('duration-display');
@@ -42,18 +54,49 @@
         const translationInput = document.getElementById('translation-input');
         const nextBtn = document.getElementById('next-btn');
         const recordBtn = document.getElementById('record-btn');
-        const resetBtn = document.getElementById('reset-btn');
+
+        async function login() {
+            loginError.textContent = "";
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: passwordInput.value })
+                });
+                if (!response.ok) throw new Error('รหัสผ่านไม่ถูกต้อง');
+                const data = await response.json();
+                sessionToken = data.token;
+                loginContainer.classList.add('hidden');
+                mainContainer.classList.remove('hidden');
+                initializeTranslator();
+            } catch (error) {
+                loginError.textContent = error.message;
+            }
+        }
+
+        function initializeTranslator() {
+            interpreterName = prompt("กรุณาใส่ชื่อของคุณ (สำหรับบันทึก):", localStorage.getItem('interpreterName') || "");
+            if (!interpreterName) {
+                alert("ต้องใส่ชื่อก่อนเริ่มทำงาน");
+                mainContainer.innerHTML = '<h1>กรุณารีเฟรชแล้วใส่ชื่อเพื่อเริ่มทำงาน</h1>';
+                return;
+            }
+            localStorage.setItem('interpreterName', interpreterName);
+            getNextTask();
+        }
 
         async function getNextTask() {
             progressEl.textContent = "กำลังค้นหาไฟล์ต่อไป...";
             try {
-                const response = await fetch(`/get-task?interpreter_name=${encodeURIComponent(interpreterName)}`);
+                const response = await fetch(`/get-task?interpreter_name=${encodeURIComponent(interpreterName)}`, {
+                    headers: { 'Authorization': `Bearer ${sessionToken}` }
+                });
                 if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
                 const task = await response.json();
 
                 if (task.message) {
                     alert(task.message);
-                    document.body.innerHTML = `<h1>${task.message}</h1>`;
+                    mainContainer.innerHTML = `<h1>${task.message}</h1>`;
                     return;
                 }
                 currentTask = task;
@@ -61,10 +104,7 @@
                 filenameEl.textContent = currentTask.filename;
                 durationEl.textContent = currentTask.duration;
                 translationInput.value = "";
-
-                // <<< ส่วนที่แก้ไข: สร้างลิงก์ที่ถูกต้องจาก File ID >>>
                 audioPlayer.src = `https://drive.google.com/uc?export=download&id=${currentTask.file_id}`;
-
                 audioPlayer.play();
             } catch (error) {
                 console.error("Error fetching task:", error);
@@ -82,7 +122,7 @@
             try {
                 const response = await fetch('/save-task', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Authorization': `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 if (!response.ok) throw new Error('Failed to save');
@@ -94,13 +134,14 @@
                 nextBtn.disabled = false; nextBtn.textContent = "บันทึกและไฟล์ถัดไป ▶";
             }
         }
+
+        loginBtn.onclick = login;
+        passwordInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') login(); });
         nextBtn.onclick = saveAndNext;
-        resetBtn.onclick = getNextTask;
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition;
         if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
+            const recognition = new SpeechRecognition();
             recognition.lang = 'th-TH'; recognition.interimResults = false;
             recordBtn.onclick = () => {
                 if (recordBtn.classList.contains('recording')) recognition.stop();
@@ -112,17 +153,6 @@
         } else {
             recordBtn.textContent = 'เบราว์เซอร์ไม่รองรับ'; recordBtn.disabled = true;
         }
-
-        window.onload = () => {
-            interpreterName = prompt("กรุณาใส่ชื่อของคุณ (สำหรับบันทึก):", localStorage.getItem('interpreterName') || "");
-            if (!interpreterName) {
-                alert("ต้องใส่ชื่อก่อนเริ่มทำงาน");
-                document.body.innerHTML = '<h1>กรุณารีเฟรชแล้วใส่ชื่อเพื่อเริ่มทำงาน</h1>';
-                return;
-            }
-            localStorage.setItem('interpreterName', interpreterName);
-            getNextTask();
-        };
     </script>
 </body>
 </html>

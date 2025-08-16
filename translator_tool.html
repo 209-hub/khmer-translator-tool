@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>เครื่องมือช่วยแปลเสียง (v4.1)</title>
+    <title>เครื่องมือช่วยแปลเสียง (v4.2)</title>
     <style>
         body { font-family: Tahoma, sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
         .container { max-width: 800px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
@@ -87,28 +87,32 @@
 
         async function getNextTask() {
             progressEl.textContent = "กำลังค้นหาไฟล์ต่อไป...";
+            nextBtn.disabled = true;
             try {
                 const response = await fetch(`/get-task?interpreter_name=${encodeURIComponent(interpreterName)}`, {
                     headers: { 'Authorization': `Bearer ${sessionToken}` }
                 });
                 const task = await response.json();
-                if (!response.ok) throw new Error(task.detail || 'Server error');
+
+                if (!response.ok) {
+                    throw new Error(task.detail || 'Server error');
+                }
 
                 if (task.message) {
                     alert(task.message);
                     mainContainer.innerHTML = `<h1>${task.message}</h1>`;
                     return;
                 }
+
                 currentTask = task;
                 progressEl.textContent = `ไฟล์ที่ ${currentTask.current_index + 1} / ${currentTask.total_files}`;
                 filenameEl.textContent = currentTask.filename;
                 durationEl.textContent = currentTask.duration;
                 translationInput.value = "";
 
-                // <<< ส่วนที่แก้ไข: สร้างลิงก์ที่ถูกต้องจาก File ID >>>
                 if(currentTask.file_id) {
                     audioPlayer.src = `https://drive.google.com/uc?export=download&id=${currentTask.file_id}`;
-                    audioPlayer.play();
+                    audioPlayer.load(); // ใช้ .load() เพื่อให้แน่ใจว่าเบราว์เซอร์พร้อม
                 } else {
                     console.error("Missing file_id for", currentTask.filename);
                     alert(`ไม่พบ File ID สำหรับไฟล์ ${currentTask.filename} กรุณาตรวจสอบ Google Sheet`);
@@ -117,11 +121,14 @@
             } catch (error) {
                 console.error("Error fetching task:", error);
                 progressEl.textContent = `เกิดข้อผิดพลาด: ${error.message}`;
+            } finally {
+                nextBtn.disabled = false;
             }
         }
 
         async function saveAndNext() {
-            nextBtn.disabled = true; nextBtn.textContent = "กำลังบันทึก...";
+            nextBtn.disabled = true;
+            nextBtn.textContent = "กำลังบันทึก...";
             const payload = {
                 filename: currentTask.filename,
                 translation: translationInput.value,
@@ -139,7 +146,8 @@
                 console.error("Error saving task:", error);
                 alert("เกิดข้อผิดพลาดในการบันทึก");
             } finally {
-                nextBtn.disabled = false; nextBtn.textContent = "บันทึกและไฟล์ถัดไป ▶";
+                nextBtn.disabled = false;
+                nextBtn.textContent = "บันทึกและไฟล์ถัดไป ▶";
             }
         }
 

@@ -11,7 +11,7 @@ import pandas as pd
 # -----------------------------
 # การตั้งค่า
 # -----------------------------
-SHEET_ID = os.getenv("16A5NmlSL40z72czwpqxQXRvnyVc9rsLK")  # ต้องใส่ค่าใน Environment Variables
+SHEET_ID = "16A5NmlSL40z72czwpqxQXRvnyVc9rsLK"
 CREDS_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
 APP_PASSWORD = os.getenv("APP_PASSWORD", "default_password_123")
 
@@ -45,7 +45,7 @@ def login(auth: AuthRequest):
     else:
         raise HTTPException(status_code=401, detail="Invalid password")
 
-def get_current_user(token: str):
+def get_current_user(token: str = Depends(lambda t: t)):
     if token not in active_tokens:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return token
@@ -59,9 +59,6 @@ worksheet = None
 def startup_event():
     global worksheet
     try:
-        if not SHEET_ID:
-            raise RuntimeError("Missing SHEET_ID env var")
-
         gc = gspread.service_account(filename=CREDS_FILE)
         spreadsheet = gc.open_by_key(SHEET_ID)
         worksheet = spreadsheet.sheet1
@@ -72,10 +69,10 @@ def startup_event():
 # -----------------------------
 # Models
 # -----------------------------
-class TaskUpdate(BaseModel):
-    file_id: str
+class SaveRequest(BaseModel):
+    filename: str
     translation: str
-    status: str
+    interpreter_name: str
 
 # -----------------------------
 # Routes
@@ -85,54 +82,63 @@ def serve_index():
     return FileResponse("translator_tool.html")
 
 @app.get("/get-task")
-def get_task(token: str = Depends(get_current_user)):
+def get_task(interpreter_name: str, token: str = Depends(get_current_user)):
     try:
-        # อ่านหัวคอลัมน์
         header = worksheet.row_values(1)
-        required_cols = ['ชื่อไฟล์','ความยาว(วินาที)','คำแปล','file_id','สถานะ']
+        required_cols = ['ชื่อไฟล์', 'file_id', 'ความยาว(วินาที)', 'คำแปล', 'สถานะ', 'ผู้แปล']
 
-        # ถ้ายังไม่มีคอลัมน์ก็เพิ่ม
-        for col in required_cols:
-            if col not in header:
-                header.append(col)
-        worksheet.update('A1', [header])
+        if not all(col in header for col in required_cols):
+            new_header = [col for col in required_cols if col not in header]
+            if new_header:
+                worksheet.update('A1', [header + new_header])
+            header = worksheet.row_values(1)
 
-        # โหลดข้อมูลใหม่
         df = pd.DataFrame(worksheet.get_all_records())
 
-        if "สถานะ" not in df.columns:
-            raise HTTPException(status_code=500, detail="ไม่พบคอลัมน์ 'สถานะ' ในชีต")
+        if df.empty:
+            return {"message": "ไม่มีไฟล์สำหรับแปลในชีต"}
 
-        # เลือกงานที่ยังไม่แปล
         pending = df[df['สถานะ'] == ""]
         if pending.empty:
-            return {"task": None}
+            return {"message": "ไม่มีไฟล์ที่ต้องแปลเหลือแล้ว"}
 
-        row = pending.iloc[0].to_dict()
-        return {"task": row}
+        # เลือกแถวแรกที่ยังไม่ได้แปล
+        task_row = pending.iloc[0]
+        
+        # ค้นหา index ของแถวที่เลือกใน dataframe
+        current_index = df[df['สถานะ'] == ""].index[0]
+        total_files = len(df)
+        
+        task = {
+            "file_id": task_row.get("file_id"),
+            "filename": task_row.get("ชื่อไฟล์"),
+            "duration": task_row.get("ความยาว(วินาที)"),
+            "current_index": current_index,
+            "total_files": total_files
+        }
+
+        return task
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดในการโหลดงาน: {e}")
 
-@app.post("/update-task")
-def update_task(update: TaskUpdate, token: str = Depends(get_current_user)):
+@app.post("/save-task")
+def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
     try:
         df = pd.DataFrame(worksheet.get_all_records())
+        
+        # ค้นหาแถวที่ตรงกับ filename
+        row_index = df.index[df['ชื่อไฟล์'] == save_req.filename][0] + 2
 
-        if "file_id" not in df.columns:
-            raise HTTPException(status_code=500, detail="ไม่พบคอลัมน์ file_id ในชีต")
+        # อัปเดตข้อมูลในชีต
+        worksheet.update_cell(row_index, df.columns.get_loc("คำแปล") + 1, save_req.translation)
+        worksheet.update_cell(row_index, df.columns.get_loc("สถานะ") + 1, "แปลแล้ว")
+        worksheet.update_cell(row_index, df.columns.get_loc("ผู้แปล") + 1, save_req.interpreter_name)
 
-        if update.file_id not in df['file_id'].astype(str).values:
-            raise HTTPException(status_code=404, detail="ไม่พบไฟล์ในชีต")
-
-        row_index = df.index[df['file_id'].astype(str) == update.file_id][0] + 2
-        worksheet.update_cell(row_index, df.columns.get_loc("คำแปล") + 1, update.translation)
-        worksheet.update_cell(row_index, df.columns.get_loc("สถานะ") + 1, update.status)
-
-        return {"success": True}
+        return {"success": True, "message": "บันทึกข้อมูลเรียบร้อย"}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดในการบันทึก: {e}")
 
 # -----------------------------
 # Static files (กันพังถ้าไม่มีโฟลเดอร์)

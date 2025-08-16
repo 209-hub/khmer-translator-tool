@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>เครื่องมือช่วยแปลเสียง (เวอร์ชันออนไลน์)</title>
+    <style>
+        /* CSS เหมือนเดิม ไม่ต้องเปลี่ยน */
+        body { font-family: Tahoma, sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
+        #container { max-width: 800px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h3 { text-align: center; }
+        #audio-player { width: 100%; margin: 1em 0; }
+        #translation-input { width: 95%; padding: 10px; font-size: 1.2em; margin-bottom: 1em; }
+        button { padding: 10px 15px; font-size: 1em; margin: 0 5px; cursor: pointer; border-radius: 5px; border: 1px solid #ccc; }
+        #record-btn { background-color: #e74c3c; color: white; border-color: #c0392b; }
+        #record-btn.recording { background-color: #c0392b; }
+        #nav-btn-container { text-align: center; margin-top: 1em; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>เครื่องมือช่วยแปลเสียง (ออนไลน์)</h1>
+        <h3 id="progress">กำลังโหลด...</h3>
+        <p><strong>ชื่อไฟล์:</strong> <span id="filename-display"></span></p>
+        <p><strong>ความยาว:</strong> <span id="duration-display"></span> วินาที</p>
+        <audio id="audio-player" controls></audio>
+        
+        <textarea id="translation-input" rows="4" placeholder="คลิกปุ่ม 'พูด' แล้วเริ่มพูดคำแปล..."></textarea>
+        
+        <div id="nav-btn-container">
+            <button id="record-btn">🎤 พูด</button>
+            <button id="next-btn">บันทึกและไฟล์ถัดไป ▶</button>
+        </div>
+    </div>
+
+    <script>
+        let currentTask = {};
+        let interpreterName = '';
+
+        const progressEl = document.getElementById('progress');
+        const filenameEl = document.getElementById('filename-display');
+        const durationEl = document.getElementById('duration-display');
+        const audioPlayer = document.getElementById('audio-player');
+        const translationInput = document.getElementById('translation-input');
+        const nextBtn = document.getElementById('next-btn');
+        const recordBtn = document.getElementById('record-btn');
+
+        async function getNextTask() {
+            try {
+                const response = await fetch(`/get-task?interpreter_name=${interpreterName}`);
+                const task = await response.json();
+
+                if (task.message) {
+                    alert(task.message);
+                    document.body.innerHTML = `<h1>${task.message}</h1>`;
+                    return;
+                }
+                
+                currentTask = task;
+                progressEl.textContent = `ไฟล์ที่ ${currentTask.current_index + 1} / ${currentTask.total_files}`;
+                filenameEl.textContent = currentTask.filename;
+                durationEl.textContent = currentTask.duration;
+                translationInput.value = "";
+                audioPlayer.src = `audio_clips/${currentTask.filename}`;
+                audioPlayer.play();
+            } catch (error) {
+                console.error("Error fetching task:", error);
+                alert("ไม่สามารถดึงไฟล์ถัดไปได้ กรุณาลองอีกครั้ง");
+            }
+        }
+
+        async function saveAndNext() {
+            nextBtn.disabled = true;
+            nextBtn.textContent = "กำลังบันทึก...";
+            
+            const payload = {
+                filename: currentTask.filename,
+                translation: translationInput.value,
+                interpreter_name: interpreterName
+            };
+
+            try {
+                const response = await fetch('/save-task', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error('Failed to save');
+                
+                // Load next task after successful save
+                await getNextTask();
+
+            } catch (error) {
+                console.error("Error saving task:", error);
+                alert("เกิดข้อผิดพลาดในการบันทึก กรุณาลองอีกครั้ง");
+            } finally {
+                nextBtn.disabled = false;
+                nextBtn.textContent = "บันทึกและไฟล์ถัดไป ▶";
+            }
+        }
+
+        nextBtn.onclick = saveAndNext;
+        
+        // Voice Recognition Logic (same as before)
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'th-TH';
+            recognition.interimResults = false;
+            recordBtn.onclick = () => {
+                if (recordBtn.classList.contains('recording')) recognition.stop();
+                else recognition.start();
+            };
+            recognition.onstart = () => { recordBtn.classList.add('recording'); recordBtn.textContent = '🛑 หยุดพูด'; };
+            recognition.onend = () => { recordBtn.classList.remove('recording'); recordBtn.textContent = '🎤 พูด'; };
+            recognition.onresult = (event) => { translationInput.value = event.results[0][0].transcript; };
+        } else {
+            recordBtn.textContent = 'เบราว์เซอร์ไม่รองรับ'; recordBtn.disabled = true;
+        }
+
+        // Initialize
+        window.onload = () => {
+            interpreterName = prompt("กรุณาใส่ชื่อของคุณ (สำหรับบันทึก):", localStorage.getItem('interpreterName') || "");
+            if (!interpreterName) {
+                alert("ต้องใส่ชื่อก่อนเริ่มทำงาน");
+                document.body.innerHTML = '<h1>กรุณารีเฟรชแล้วใส่ชื่อเพื่อเริ่มทำงาน</h1>';
+                return;
+            }
+            localStorage.setItem('interpreterName', interpreterName);
+            getNextTask();
+        };
+    </script>
+</body>
+</html>

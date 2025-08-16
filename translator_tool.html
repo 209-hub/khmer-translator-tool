@@ -60,7 +60,10 @@
                 filenameEl.textContent = currentTask.filename;
                 durationEl.textContent = currentTask.duration;
                 translationInput.value = "";
-                audioPlayer.src = `audio_clips/${currentTask.filename}`;
+                // สร้าง URL สำหรับเล่นเสียงจาก Google Drive โดยตรง
+                // หมายเหตุ: คุณต้องใส่ ID ของโฟลเดอร์ audio_clips ของคุณตรงนี้
+                const FOLDER_ID = "14kkmsoRh4FsonOcxLtRZckEAuRfRnLYD"; // <--- แก้ไขตรงนี้
+                audioPlayer.src = `https://drive.google.com/uc?id=${currentTask.filename.split('_')[0]}&export=download`;
                 audioPlayer.play();
             } catch (error) {
                 console.error("Error fetching task:", error);

@@ -37,21 +37,25 @@ class SaveRequest(BaseModel):
 def get_task_for_interpreter(interpreter_name: str):
     if not worksheet:
         raise HTTPException(status_code=500, detail="ไม่สามารถเชื่อมต่อกับ Google Sheet")
-    
+
     df = pd.DataFrame(worksheet.get_all_records())
-    
-    # หาแถวแรกที่ยังไม่มีคำแปล และยังไม่มีใครทำอยู่
+    # เพิ่มคอลัมน์ 'สถานะ' ถ้ายังไม่มี
+    if 'สถานะ' not in df.columns:
+        df['สถานะ'] = ''
+        worksheet.update_cell(1, 4, 'สถานะ') # เพิ่ม header
+        print("เพิ่มคอลัมน์ 'สถานะ' ใน Google Sheet")
+
     untranslated_rows = df[(df['คำแปล'] == '') & (df['สถานะ'] != 'กำลังแปล')]
-    
+
     if untranslated_rows.empty:
         return {"message": "🎉 ยอดเยี่ยม! แปลครบทุกไฟล์แล้ว"}
 
     task_row = untranslated_rows.iloc[0]
-    row_index_to_update = task_row.name + 2 # +2 เพราะ index ของ pandas เริ่มที่ 0 และ header คือแถวที่ 1
+    row_index_to_update = task_row.name + 2
 
-    # อัปเดตสถานะใน Sheet ว่ามีคนกำลังทำอยู่
+    # อัปเดตสถานะใน Sheet
     worksheet.update_cell(row_index_to_update, 4, f"กำลังแปลโดย {interpreter_name}")
-    
+
     return {
         "filename": task_row['ชื่อไฟล์'],
         "duration": task_row['ความยาว(วินาที)'],
@@ -75,7 +79,6 @@ def save_translation(request: SaveRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- Serve Frontend ---
-app.mount("/audio_clips", StaticFiles(directory="audio_clips"), name="audio_clips")
 
 @app.get("/")
 def read_root():

@@ -5,14 +5,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-# --- การตั้งค่า ---
 SHEET_NAME = "translation_sheet.xlsx"
 CREDS_FILE = "credentials.json"
 
 app = FastAPI()
 worksheet = None
 
-# --- ฟังก์ชันสำหรับเชื่อมต่อ Google Sheets ตอนเริ่มต้น ---
 @app.on_event("startup")
 def startup_event():
     global worksheet
@@ -23,33 +21,28 @@ def startup_event():
         print("✅ เชื่อมต่อ Google Sheets สำเร็จ!")
     except Exception as e:
         print(f"❌ ไม่สามารถเชื่อมต่อ Google Sheets ได้: {e}")
-        # โปรแกรมจะยังทำงานต่อ แต่จะแจ้ง Error เมื่อมีการเรียกใช้ API
 
-# --- Models สำหรับรับส่งข้อมูล ---
 class SaveRequest(BaseModel):
     filename: str
     translation: str
     interpreter_name: str
 
-# --- API Endpoints ---
-
-# <<< เพิ่ม Endpoint นี้เข้าไป >>>
 @app.get("/health")
 def health_check():
-    # ประตูสำหรับให้ Render ตรวจสอบว่าเซิร์ฟเวอร์ทำงานอยู่
     return JSONResponse(content={"status": "ok"})
 
 @app.get("/get-task")
 def get_task_for_interpreter(interpreter_name: str):
     if worksheet is None:
-        raise HTTPException(status_code=503, detail="Service Unavailable: ไม่สามารถเชื่อมต่อกับ Google Sheet ได้ กรุณาตรวจสอบ Log")
+        raise HTTPException(status_code=503, detail="Service Unavailable: ไม่สามารถเชื่อมต่อ Google Sheet")
 
     try:
         df = pd.DataFrame(worksheet.get_all_records())
 
-        if 'สถานะ' not in df.columns:
-            df['สถานะ'] = ''
-            worksheet.update_cell(1, 4, 'สถานะ')
+        required_cols = ['ชื่อไฟล์', 'ความยาว(วินาที)', 'คำแปล', 'file_id', 'สถานะ']
+        for col in required_cols:
+            if col not in df.columns:
+                raise HTTPException(status_code=500, detail=f"ไม่พบคอลัมน์ '{col}' ใน Google Sheet")
 
         untranslated_rows = df[(df['คำแปล'] == '') & (df['สถานะ'] != 'กำลังแปล')]
 
@@ -59,34 +52,31 @@ def get_task_for_interpreter(interpreter_name: str):
         task_row = untranslated_rows.iloc[0]
         row_index_to_update = task_row.name + 2
 
-        worksheet.update_cell(row_index_to_update, 4, f"กำลังแปลโดย {interpreter_name}")
+        worksheet.update_cell(row_index_to_update, 5, f"กำลังแปลโดย {interpreter_name}")
 
         return {
             "filename": task_row['ชื่อไฟล์'],
             "duration": task_row['ความยาว(วินาที)'],
+            "file_id": task_row['file_id'], # <<< ส่ง File ID ไปด้วย
             "total_files": len(df),
             "current_index": int(task_row.name)
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดในการอ่านข้อมูลจาก Sheet: {e}")
-
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {e}")
 
 @app.post("/save-task")
 def save_translation(request: SaveRequest):
     if worksheet is None:
-        raise HTTPException(status_code=503, detail="Service Unavailable: ไม่สามารถเชื่อมต่อกับ Google Sheet ได้")
+        raise HTTPException(status_code=503, detail="Service Unavailable: ไม่สามารถเชื่อมต่อ Google Sheet")
 
     try:
         cell = worksheet.find(request.filename, in_column=1)
         worksheet.update_cell(cell.row, 3, request.translation)
-        worksheet.update_cell(cell.row, 4, "แปลเสร็จแล้ว")
-        return {"status": "success", "message": f"บันทึกไฟล์ {request.filename} เรียบร้อย"}
-    except gspread.exceptions.CellNotFound:
-        raise HTTPException(status_code=404, detail=f"ไม่พบไฟล์ {request.filename} ใน Sheet")
+        worksheet.update_cell(cell.row, 5, f"แปลเสร็จแล้วโดย {request.interpreter_name}")
+        return {"status": "success"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {e}")
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาด: {e}")
 
-# --- Serve Frontend ---
 @app.get("/")
 def read_root():
     return FileResponse('translator_tool.html')

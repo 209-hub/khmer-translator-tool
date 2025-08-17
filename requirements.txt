@@ -3,3 +3,10 @@ uvicorn[standard]
 gspread
 google-auth
 pandas
+pydub
+ffmpeg-python
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+openpyxl
+oauth2client

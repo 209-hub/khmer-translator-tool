@@ -6,8 +6,12 @@ import logging
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+import pickle
 
 # -----------------------------
 # CONFIGURATION
@@ -42,7 +46,7 @@ class AuthRequest(BaseModel):
     interpreter_name: str
     password: str
 
-active_tokens = {} # Dictionary to store tokens {token: interpreter_name}
+active_tokens = {}
 
 @app.post("/login")
 def login(auth: AuthRequest):
@@ -180,4 +184,5 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Failed to save data: {e}")
 
 # Static file mount points
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Removed app.mount("/audio_clips", ...) due to deployment issues.
+# Removed app.mount("/static", ...) if you don't have a static folder.

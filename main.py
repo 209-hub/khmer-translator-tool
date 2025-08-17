@@ -19,12 +19,12 @@ import pickle
 SHEET_ID = "1UAuEPU-OIzumxsqIag5xyxOCYldaqgKK70CMkReyv9M"
 CREDS_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
 APP_PASSWORD = {
-    "ล่าม1": "Mi88611",
-    "ล่าม2": "Mi88612",
-    "ล่าม3": "Mi88613",
-    "ล่าม4": "Mi88614",
+    "lam1": "Mi88611",
+    "lam2": "Mi88612",
+    "lam3": "Mi88613",
+    "lam4": "Mi88614",
 }
-INTERPRETER_NAMES = ["ล่าม1", "ล่าม2", "ล่าม3", "ล่าม4"]
+INTERPRETER_NAMES = ["lam1", "lam2", "lam3", "lam4"]
 
 app = FastAPI()
 

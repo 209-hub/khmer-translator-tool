@@ -15,12 +15,12 @@ from pydantic import BaseModel
 SHEET_ID = "1UAuEPU-OIzumxsqIag5xyxOCYldaqgKK70CMkReyv9M"
 CREDS_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
 APP_PASSWORD = {
-    "ล่าม1": "Mi88611",  # <--- แก้ไขชื่อและรหัสผ่านที่นี่
+    "ล่าม1": "Mi88611",
     "ล่าม2": "Mi88612",
     "ล่าม3": "Mi88613",
     "ล่าม4": "Mi88614",
 }
-INTERPRETER_NAMES = ["ล่าม1", "ล่าม2", "ล่าม3", "ล่าม4"] # <--- แก้ไขชื่อล่ามที่นี่
+INTERPRETER_NAMES = ["ล่าม1", "ล่าม2", "ล่าม3", "ล่าม4"]
 
 app = FastAPI()
 
@@ -180,5 +180,4 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Failed to save data: {e}")
 
 # Static file mount points
-app.mount("/audio_clips", StaticFiles(directory="audio_clips"), name="audio_clips")
 app.mount("/static", StaticFiles(directory="static"), name="static")

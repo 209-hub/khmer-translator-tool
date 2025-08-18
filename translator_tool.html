@@ -174,15 +174,21 @@
             filenameEl.textContent = task.ชื่อไฟล์;
             durationEl.textContent = task['ความยาว(วินาที)'];
             translationInput.value = task.คำแปล || '';
+            
+            // --- ⭐️⭐️⭐️ START OF MODIFIED CODE ⭐️⭐️⭐️ ---
+            const publicBucketUrl = 'https://pub-b47fc63dcc3444b1aac8e0869f77cd50.r2.dev';
 
-            if(task.file_id) {
-                audioPlayer.src = `https://drive.google.com/uc?export=download&id=${task.file_id}`;
+            if(task.ชื่อไฟล์) {
+                // Create the URL by combining the R2 Public URL with the filename
+                audioPlayer.src = `${publicBucketUrl}/${task.ชื่อไฟล์}`; 
+                console.log("Loading audio from:", audioPlayer.src); // For debugging to check if the URL is correct
                 audioPlayer.load();
                 audioPlayer.play(); // Play audio automatically
             } else {
-                console.error("Missing file_id for", task.ชื่อไฟล์);
-                alert(`ไม่พบ File ID สำหรับไฟล์ ${task.ชื่อไฟล์} กรุณาตรวจสอบ Google Sheet`);
+                console.error("Missing filename for task at index", index);
+                alert(`ไม่พบชื่อไฟล์สำหรับงานลำดับที่ ${index + 1}`);
             }
+            // --- ⭐️⭐️⭐️  END OF MODIFIED CODE  ⭐️⭐️⭐️ ---
         }
 
         async function saveAndNext() {
@@ -218,7 +224,11 @@
                 renderBottomNav();
 
                 // Load next task
-                loadTask(currentTaskIndex + 1);
+                if (currentTaskIndex < allTasks.length - 1) {
+                    loadTask(currentTaskIndex + 1);
+                } else {
+                    alert("ยินดีด้วย! คุณทำงานทั้งหมดเสร็จแล้ว");
+                }
 
             } catch (error) {
                 console.error("Error saving task:", error);

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 SHEET_ID = "1UAuEPU-OIzumxsqIag5xyxOCYldaqgKK70CMkReyv9M"
 CREDS_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
 
-# Retrieve passwords from environment variables
+# Retrieve interpreter names and passwords from environment variables
 APP_PASSWORD = {
     "ล่าม1": os.getenv("PASSWORD_ล่าม1"),
     "ล่าม2": os.getenv("PASSWORD_ล่าม2"),
@@ -179,7 +179,3 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
     except Exception as e:
         logging.error(f"Error saving task: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save data: {e}")
-
-# Static file mount points
-# Removed app.mount("/audio_clips", ...) due to deployment issues.
-# Removed app.mount("/static", ...) if you don't have a static folder.

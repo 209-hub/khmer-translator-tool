@@ -11,7 +11,7 @@
             box-sizing: border-box;
             max-width: 800px;
             margin: auto;
-            overflow-y: auto; /* Allow content to scroll if needed */
+            overflow-y: auto;
         }
         .container {
             background: white;
@@ -38,14 +38,15 @@
             background: #fff;
             padding: 10px;
             box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
-            overflow-y: auto; /* Enable vertical scrolling */
-            max-height: 150px; /* Adjust height as needed */
-            flex-shrink: 0; /* Prevent the nav from shrinking */
+            overflow-y: auto;
+            max-height: 150px;
+            flex-shrink: 0;
         }
         .nav-item-container {
             display: grid;
-            grid-template-columns: repeat(100, 1fr); /* Create 100 columns */
-            gap: 2px; /* Space between items */
+            /* === FIX #2: Changed from 100 to 50 columns === */
+            grid-template-columns: repeat(50, 1fr);
+            gap: 3px;
             justify-content: center;
         }
         .nav-item {
@@ -53,7 +54,7 @@
             border: 1px solid #eee;
             cursor: pointer;
             border-radius: 3px;
-            font-size: 0.75em; /* Smaller font size */
+            font-size: 0.8em;
             text-align: center;
             box-sizing: border-box;
             white-space: nowrap;
@@ -74,7 +75,7 @@
         <p id="login-error" style="color: red;"></p>
     </div>
 
-    <div id="main-app" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
+    <div id="main-app" class="hidden">
         <div class="main-content">
             <div class="container">
                 <h1>เครื่องมือช่วยล่ามแปลเสียง</h1>
@@ -97,6 +98,7 @@
     </div>
 
     <script>
+        // ... (Previous variable declarations are the same)
         let allTasks = [];
         let currentTaskIndex = 0;
         let sessionToken = '';
@@ -119,6 +121,13 @@
         const nextBtn = document.getElementById('next-btn');
         const recordBtn = document.getElementById('record-btn');
 
+        // === FIX #4: Function to handle unauthorized/expired token ===
+        function handleUnauthorized() {
+            alert("Session หมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
+            localStorage.clear();
+            window.location.reload();
+        }
+
         async function login() {
             loginError.textContent = "";
             try {
@@ -137,10 +146,10 @@
                 localStorage.setItem('sessionToken', sessionToken);
                 localStorage.setItem('interpreterName', interpreterName);
                 loginContainer.classList.add('hidden');
-                mainApp.style.display = 'flex';
+                mainApp.classList.remove('hidden');
+                mainApp.style.display = 'flex'; // This now correctly shows the app
                 loadAllTasks();
-            } catch (error)
-                {
+            } catch (error) {
                 loginError.textContent = error.message;
             }
         }
@@ -148,17 +157,18 @@
         async function loadAllTasks() {
             try {
                 const response = await fetch(`/get-all-tasks?token=${sessionToken}`);
+                if (response.status === 401) {
+                    handleUnauthorized();
+                    return;
+                }
                 if (!response.ok) throw new Error(`Failed to load tasks with status ${response.status}`);
                 const data = await response.json();
                 allTasks = data.tasks;
                 renderBottomNav();
-
                 if (allTasks.length > 0) {
-                    // ⭐️⭐️⭐️ START OF MODIFIED CODE ⭐️⭐️⭐️
                     const lastIndex = localStorage.getItem(`lastIndex_${interpreterName}`);
                     const startIndex = lastIndex ? parseInt(lastIndex, 10) : 0;
-                    loadTask(startIndex);
-                    // ⭐️⭐️⭐️  END OF MODIFIED CODE  ⭐️⭐️⭐️
+                    loadTask(startIndex < allTasks.length ? startIndex : 0);
                 } else {
                     progressEl.textContent = "ไม่พบงานที่ได้รับมอบหมาย";
                 }
@@ -182,11 +192,7 @@
         function loadTask(index) {
             if (index < 0 || index >= allTasks.length) return;
             currentTaskIndex = index;
-
-            // ⭐️⭐️⭐️ START OF MODIFIED CODE ⭐️⭐️⭐️
-            localStorage.setItem(`lastIndex_${interpreterName}`, index); // Save current index
-            // ⭐️⭐️⭐️  END OF MODIFIED CODE  ⭐️⭐️⭐️
-
+            localStorage.setItem(`lastIndex_${interpreterName}`, index);
             const task = allTasks[currentTaskIndex];
 
             document.querySelectorAll('.nav-item').forEach((item, i) => {
@@ -232,6 +238,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+
+                if (response.status === 401) {
+                    handleUnauthorized();
+                    return;
+                }
                 
                 if (!response.ok) {
                     let errorDetail = `Server responded with status ${response.status}`;
@@ -255,7 +266,6 @@
                 } else {
                     alert("ยินดีด้วย! คุณทำงานทั้งหมดเสร็จแล้ว");
                 }
-
             } catch (error) {
                 console.error("Error saving task:", error);
                 alert("เกิดข้อผิดพลาดในการบันทึก: " + error.message);
@@ -270,57 +280,61 @@
                 loadTask(currentTaskIndex - 1);
             }
         }
-
+        
         loginBtn.onclick = login;
         interpreterNameInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') login(); });
         passwordInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') login(); });
         nextBtn.onclick = saveAndNext;
         prevBtn.onclick = navigateBack;
 
+        // Speech Recognition
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
             recognition.lang = 'th-TH';
-            recognition.interimResults = true; // Show results as you speak
-            recognition.continuous = true; // Keep listening
-
-            let final_transcript = '';
+            recognition.interimResults = false;
+            // === FIX #3: Set continuous to false for auto-stop ===
+            recognition.continuous = false; 
 
             recordBtn.onclick = () => {
                 if (recordBtn.classList.contains('recording')) {
                     recognition.stop();
                 } else {
-                    final_transcript = translationInput.value;
                     recognition.start();
                 }
             };
-
             recognition.onstart = () => {
                 recordBtn.classList.add('recording');
                 recordBtn.textContent = '🛑 หยุดพูด';
             };
-
             recognition.onend = () => {
                 recordBtn.classList.remove('recording');
                 recordBtn.textContent = '🎤 พูด';
             };
-            
             recognition.onresult = (event) => {
-                let interim_transcript = '';
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        final_transcript += event.results[i][0].transcript;
-                    } else {
-                        interim_transcript += event.results[i][0].transcript;
-                    }
-                }
-                translationInput.value = final_transcript + interim_transcript;
+                // Append the result to existing text
+                const transcript = event.results[0][0].transcript;
+                translationInput.value += transcript;
             };
-
         } else {
             recordBtn.textContent = 'เบราว์เซอร์ไม่รองรับ';
             recordBtn.disabled = true;
         }
+
+        // Check for existing session on page load
+        window.onload = () => {
+            const storedToken = localStorage.getItem('sessionToken');
+            const storedName = localStorage.getItem('interpreterName');
+            if (storedToken && storedName) {
+                sessionToken = storedToken;
+                interpreterName = storedName;
+                loginContainer.classList.add('hidden');
+                mainApp.classList.remove('hidden');
+                mainApp.style.display = 'flex';
+                loadAllTasks();
+            }
+        };
+
     </script>
 </body>
 </html>

@@ -6,25 +6,22 @@ import logging
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-import pickle
 
 # -----------------------------
 # CONFIGURATION
 # -----------------------------
 SHEET_ID = "1UAuEPU-OIzumxsqIag5xyxOCYldaqgKK70CMkReyv9M"
 CREDS_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
+
+# Retrieve passwords from environment variables
 APP_PASSWORD = {
-    "lam1": "Mi88611",
-    "lam2": "Mi88612",
-    "lam3": "Mi88613",
-    "lam4": "Mi88614",
+    "ล่าม1": os.getenv("PASSWORD_ล่าม1"),
+    "ล่าม2": os.getenv("PASSWORD_ล่าม2"),
+    "ล่าม3": os.getenv("PASSWORD_ล่าม3"),
+    "ล่าม4": os.getenv("PASSWORD_ล่าม4"),
 }
-INTERPRETER_NAMES = ["lam1", "lam2", "lam3", "lam4"]
 
 app = FastAPI()
 

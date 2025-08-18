@@ -4,49 +4,15 @@
     <meta charset="UTF-8">
     <title>เครื่องมือช่วยแปลเสียง</title>
     <style>
-        body { font-family: Tahoma, sans-serif; margin: 0; background-color: #f4f4f9; display: flex; }
-        .sidebar {
-            width: 250px;
-            background: #fff;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-            overflow-y: auto;
-            height: 100vh;
-        }
-        .sidebar h2 { margin-top: 0; }
-        .file-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .file-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-        }
-        .file-item:hover { background-color: #f0f0f0; }
-        .file-item.active { background-color: #e0f7fa; font-weight: bold; }
-        .status-dot {
-            height: 10px;
-            width: 10px;
-            background-color: #bbb; /* Grey for pending */
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 10px;
-        }
-        .status-dot.completed { background-color: #2ecc71; }
-
+        body { font-family: Tahoma, sans-serif; margin: 0; background-color: #f4f4f9; display: flex; flex-direction: column; }
         .main-content {
             flex-grow: 1;
             padding: 2em;
             box-sizing: border-box;
-            max-width: calc(100% - 250px);
-        }
-        .container {
             max-width: 800px;
             margin: auto;
+        }
+        .container {
             background: white;
             padding: 2em;
             border-radius: 8px;
@@ -54,9 +20,9 @@
         }
         h1, h3 { text-align: center; }
 
-        #login-container { text-align: center; max-width: 400px; margin: auto; padding: 2em; }
+        #login-container { text-align: center; max-width: 400px; margin: 50px auto; padding: 2em; }
         #login-container input, #login-container button { width: 90%; margin: 10px 0; padding: 10px; font-size: 1.1em; }
-        
+
         #audio-player { width: 100%; margin: 1em 0; }
         #translation-input { width: 95%; padding: 10px; font-size: 1.2em; margin-bottom: 1em; }
         button { padding: 10px 15px; font-size: 1em; margin: 0 5px; cursor: pointer; border-radius: 5px; border: 1px solid #ccc; }
@@ -66,6 +32,27 @@
         #nav-btn-container { text-align: center; margin-top: 1em; }
         #progress { font-size: 1.2em; font-weight: bold; }
         .hidden { display: none; }
+
+        /* New styling for bottom navigation */
+        .bottom-nav {
+            background: #fff;
+            padding: 10px;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            overflow-x: auto;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .nav-item {
+            display: inline-block;
+            padding: 8px 12px;
+            border: 1px solid #eee;
+            margin: 0 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .nav-item:hover { background-color: #f0f0f0; }
+        .nav-item.active { background-color: #e0f7fa; font-weight: bold; }
+        .nav-item.completed { background-color: #2ecc71; color: white; }
     </style>
 </head>
 <body>
@@ -78,12 +65,6 @@
     </div>
 
     <div id="main-app" class="hidden">
-        <div class="sidebar">
-            <h2>รายการไฟล์</h2>
-            <p id="file-count-display"></p>
-            <ul id="file-list" class="file-list">
-                </ul>
-        </div>
         <div class="main-content">
             <div class="container">
                 <h1>เครื่องมือช่วยแปลเสียง</h1>
@@ -99,6 +80,8 @@
                 </div>
             </div>
         </div>
+        <div id="bottom-nav" class="bottom-nav">
+            </div>
     </div>
 
     <script>
@@ -115,7 +98,7 @@
         const loginError = document.getElementById('login-error');
 
         const fileCountDisplay = document.getElementById('file-count-display');
-        const fileListEl = document.getElementById('file-list');
+        const bottomNav = document.getElementById('bottom-nav');
         const progressEl = document.getElementById('progress');
         const filenameEl = document.getElementById('filename-display');
         const durationEl = document.getElementById('duration-display');
@@ -156,8 +139,7 @@
                 if (!response.ok) throw new Error(`Failed to load tasks with status ${response.status}`);
                 const data = await response.json();
                 allTasks = data.tasks;
-                fileCountDisplay.textContent = `ทั้งหมด ${allTasks.length} ไฟล์`;
-                renderFileList();
+                renderBottomNav();
                 loadTask(0);
             } catch (error) {
                 console.error("Error loading tasks:", error);
@@ -165,17 +147,14 @@
             }
         }
 
-        function renderFileList() {
-            fileListEl.innerHTML = '';
+        function renderBottomNav() {
+            bottomNav.innerHTML = '';
             allTasks.forEach((task, index) => {
-                const listItem = document.createElement('li');
-                listItem.className = 'file-item';
-                listItem.innerHTML = `
-                    <span class="status-dot ${task.สถานะ === 'แปลแล้ว' ? 'completed' : ''}"></span>
-                    <span>${task.ชื่อไฟล์}</span>
-                `;
-                listItem.onclick = () => { loadTask(index); };
-                fileListEl.appendChild(listItem);
+                const navItem = document.createElement('span');
+                navItem.className = `nav-item ${task.สถานะ === 'แปลแล้ว' ? 'completed' : ''}`;
+                navItem.textContent = `${index + 1}`;
+                navItem.onclick = () => { loadTask(index); };
+                bottomNav.appendChild(navItem);
             });
         }
 
@@ -184,8 +163,8 @@
             currentTaskIndex = index;
             const task = allTasks[currentTaskIndex];
             
-            // Highlight active file in sidebar
-            const items = fileListEl.querySelectorAll('.file-item');
+            // Highlight active file in navigation
+            const items = bottomNav.querySelectorAll('.nav-item');
             items.forEach((item, i) => {
                 item.classList.remove('active');
                 if (i === index) item.classList.add('active');
@@ -236,7 +215,7 @@
                 // Update local task status
                 task.คำแปล = translationText;
                 task.สถานะ = translationText ? 'แปลแล้ว' : '';
-                renderFileList();
+                renderBottomNav();
 
                 // Load next task
                 loadTask(currentTaskIndex + 1);

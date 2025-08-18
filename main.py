@@ -47,10 +47,12 @@ active_tokens = {}
 
 @app.post("/login")
 def login(auth: AuthRequest):
-    if auth.interpreter_name in APP_PASSWORD and auth.password == APP_PASSWORD[auth.interpreter_name]:
+    # Ensure interpreter_name from input is stripped of whitespace
+    auth_interpreter_name = auth.interpreter_name.strip()
+    if auth_interpreter_name in APP_PASSWORD and auth.password == APP_PASSWORD[auth_interpreter_name]:
         token = str(uuid.uuid4())
-        active_tokens[token] = auth.interpreter_name
-        return {"token": token, "interpreter_name": auth.interpreter_name}
+        active_tokens[token] = auth_interpreter_name
+        return {"token": token, "interpreter_name": auth_interpreter_name}
     else:
         raise HTTPException(status_code=401, detail="Invalid interpreter name or password")
 
@@ -109,8 +111,15 @@ def get_all_tasks(token: str = Depends(get_current_user)):
         if df.empty:
             return {"message": "No files found in the sheet."}
         
-        # Filter tasks for the logged-in interpreter
-        interpreter_tasks = df[df['ผู้แปล'] == interpreter_name].to_dict('records')
+        # Ensure the 'ผู้แปล' column is treated as string and stripped
+        if 'ผู้แปล' in df.columns:
+            df['ผู้แปล'] = df['ผู้แปล'].astype(str).str.strip()
+        else:
+            logging.warning("Column 'ผู้แปล' not found in Google Sheet.")
+            return {"tasks": []} # Return empty tasks if column is missing
+
+        # Filter tasks for the logged-in interpreter, ensuring interpreter_name is stripped
+        interpreter_tasks = df[df['ผู้แปล'] == interpreter_name.strip()].to_dict('records')
         
         return JSONResponse(content={"tasks": interpreter_tasks})
         
@@ -168,7 +177,7 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
 
         new_status = "แปลแล้ว" if save_req.translation.strip() else ""
 
-        worksheet.update_cell(row_index, col_translation, save_req.translation)
+        worksheet.update_cell(row_index, col_translation, save_req.translation) # Save actual translation
         worksheet.update_cell(row_index, col_status, new_status)
         worksheet.update_cell(row_index, col_interpreter, save_req.interpreter_name)
 

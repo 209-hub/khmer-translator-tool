@@ -17,10 +17,10 @@ CREDS_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
 
 # Retrieve interpreter names and passwords from environment variables
 APP_PASSWORD = {
-    "ล่าม1": os.getenv("PASSWORD_ล่าม1"),
-    "ล่าม2": os.getenv("PASSWORD_ล่าม2"),
-    "ล่าม3": os.getenv("PASSWORD_ล่าม3"),
-    "ล่าม4": os.getenv("PASSWORD_ล่าม4"),
+    "lam1": os.getenv("PASSWORD_lam1"),
+    "lam2": os.getenv("PASSWORD_lam2"),
+    "lam3": os.getenv("PASSWORD_lam3"),
+    "lam4": os.getenv("PASSWORD_lam4"),
 }
 
 app = FastAPI()
@@ -168,7 +168,8 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
 
         new_status = "แปลแล้ว" if save_req.translation.strip() else ""
 
-        worksheet.update_cell(row_index, col_translation, new_status)
+        worksheet.update_cell(row_index, col_translation, save_req.translation)
+        worksheet.update_cell(row_index, col_status, new_status)
         worksheet.update_cell(row_index, col_interpreter, save_req.interpreter_name)
 
         return {"success": True, "message": "Data saved successfully."}
@@ -178,5 +179,3 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
     except Exception as e:
         logging.error(f"Error saving task: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save data: {e}")
-
-# Removed app.mount("/static", StaticFiles(directory="static"), name="static")

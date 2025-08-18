@@ -139,6 +139,10 @@
         const nextBtn = document.getElementById('next-btn');
         const recordBtn = document.getElementById('record-btn');
 
+         document.addEventListener('DOMContentLoaded', () => {
+            mainApp.classList.add('hidden');
+        });
+
         async function login() {
             loginError.textContent = "";
             try {

@@ -33,6 +33,11 @@
         #nav-btn-container { text-align: center; margin-top: 1em; }
         #progress { font-size: 1.2em; font-weight: bold; }
         .hidden { display: none; }
+        #main-app {
+         display: flex;
+         flex-direction: column;
+         height: 100%;
+        }
 
         .bottom-nav {
             background: #fff;
@@ -89,7 +94,7 @@
         <p id="login-error" style="color: red;"></p>
     </div>
 
-    <div id="main-app" class="hidden">
+    <div id="main-app" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
         <div class="main-content">
             <div class="container">
                 <h1>เครื่องมือช่วยล่ามแปลเสียง</h1>
@@ -105,10 +110,10 @@
                 </div>
             </div>
         </div>
-        <div id="bottom-nav" class="bottom-nav">
-            <div id="nav-item-container" class="nav-item-container">
+            <div id="bottom-nav" class="bottom-nav">
+                <div id="nav-item-container" class="nav-item-container">
                 </div>
-        </div>
+            </div>
     </div>
 
     <script>
@@ -187,7 +192,7 @@
             navItemContainer.innerHTML = '';
             allTasks.forEach((task, index) => {
                 const navItem = document.createElement('div');
-                navItem.className = `nav-item ${task.สถานะ === 'แปลแล้ว' ? 'completed' : ''}`;
+                navItem.className = `nav-item ${(task.คำแปล && task.คำแปล.trim() !== '') ? 'completed' : ''}`;
                 navItem.textContent = `${index + 1}`;
                 navItem.onclick = () => { loadTask(index); };
                 navItemContainer.appendChild(navItem);

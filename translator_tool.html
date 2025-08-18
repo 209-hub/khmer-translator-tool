@@ -11,7 +11,7 @@
             box-sizing: border-box;
             max-width: 800px;
             margin: auto;
-            overflow-y: auto;
+            overflow-y: auto; /* Allow content to scroll if needed */
         }
         .container {
             background: white;
@@ -38,15 +38,14 @@
             background: #fff;
             padding: 10px;
             box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
-            overflow-y: auto;
-            max-height: 150px;
-            flex-shrink: 0;
+            overflow-y: auto; /* Enable vertical scrolling */
+            max-height: 150px; /* Adjust height as needed */
+            flex-shrink: 0; /* Prevent the nav from shrinking */
         }
         .nav-item-container {
             display: grid;
-            /* === FIX #2: Changed from 100 to 50 columns === */
-            grid-template-columns: repeat(50, 1fr);
-            gap: 3px;
+            grid-template-columns: repeat(50, 1fr); /* Create 100 columns */
+            gap: 2px; /* Space between items */
             justify-content: center;
         }
         .nav-item {
@@ -54,7 +53,7 @@
             border: 1px solid #eee;
             cursor: pointer;
             border-radius: 3px;
-            font-size: 0.8em;
+            font-size: 0.75em; /* Smaller font size */
             text-align: center;
             box-sizing: border-box;
             white-space: nowrap;
@@ -64,6 +63,21 @@
         .nav-item:hover { background-color: #f0f0f0; }
         .nav-item.active { background-color: #e0f7fa; font-weight: bold; }
         .nav-item.completed { background-color: #2ecc71; color: white; }
+        /* --- START: CSS for Mobile Devices --- */
+        @media (max-width: 768px) {
+            .nav-item-container {
+                grid-template-columns: repeat(10, 1fr); /* 👈 แสดง 10 ตัวเลขต่อแถวบนมือถือ */
+            }
+
+            .main-content {
+                padding: 1em; /* ลดระยะขอบบนมือถือ */
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+        }
+        /* --- END: CSS for Mobile Devices --- */
     </style>
 </head>
 <body>
@@ -83,7 +97,7 @@
                 <p><strong>ชื่อไฟล์:</strong> <span id="filename-display"></span></p>
                 <p><strong>ความยาว:</strong> <span id="duration-display"></span> วินาที</p>
                 <audio id="audio-player" controls></audio>
-                <textarea id="translation-input" rows="4" placeholder="คลิกปุ่ม 'พูด' แล้วเริ่มพูดคำแปล..."></textarea>
+                <textarea id="translation-input" rows="4" placeholder="คลิกปุ่ม 'พูด' แล้วเริ่มพูดคำแปล...หากไม่มีเสียงให้พิมพ์ -"></textarea>
                 <div id="nav-btn-container">
                     <button id="prev-btn">◀ ก่อนหน้า</button>
                     <button id="record-btn">🎤 พูด</button>
@@ -98,7 +112,6 @@
     </div>
 
     <script>
-        // ... (Previous variable declarations are the same)
         let allTasks = [];
         let currentTaskIndex = 0;
         let sessionToken = '';
@@ -121,13 +134,6 @@
         const nextBtn = document.getElementById('next-btn');
         const recordBtn = document.getElementById('record-btn');
 
-        // === FIX #4: Function to handle unauthorized/expired token ===
-        function handleUnauthorized() {
-            alert("Session หมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
-            localStorage.clear();
-            window.location.reload();
-        }
-
         async function login() {
             loginError.textContent = "";
             try {
@@ -146,10 +152,10 @@
                 localStorage.setItem('sessionToken', sessionToken);
                 localStorage.setItem('interpreterName', interpreterName);
                 loginContainer.classList.add('hidden');
-                mainApp.classList.remove('hidden');
-                mainApp.style.display = 'flex'; // This now correctly shows the app
+                mainApp.style.display = 'flex';
                 loadAllTasks();
-            } catch (error) {
+            } catch (error)
+                {
                 loginError.textContent = error.message;
             }
         }
@@ -157,18 +163,17 @@
         async function loadAllTasks() {
             try {
                 const response = await fetch(`/get-all-tasks?token=${sessionToken}`);
-                if (response.status === 401) {
-                    handleUnauthorized();
-                    return;
-                }
                 if (!response.ok) throw new Error(`Failed to load tasks with status ${response.status}`);
                 const data = await response.json();
                 allTasks = data.tasks;
                 renderBottomNav();
+
                 if (allTasks.length > 0) {
+                    // ⭐️⭐️⭐️ START OF MODIFIED CODE ⭐️⭐️⭐️
                     const lastIndex = localStorage.getItem(`lastIndex_${interpreterName}`);
                     const startIndex = lastIndex ? parseInt(lastIndex, 10) : 0;
-                    loadTask(startIndex < allTasks.length ? startIndex : 0);
+                    loadTask(startIndex);
+                    // ⭐️⭐️⭐️  END OF MODIFIED CODE  ⭐️⭐️⭐️
                 } else {
                     progressEl.textContent = "ไม่พบงานที่ได้รับมอบหมาย";
                 }
@@ -192,7 +197,11 @@
         function loadTask(index) {
             if (index < 0 || index >= allTasks.length) return;
             currentTaskIndex = index;
-            localStorage.setItem(`lastIndex_${interpreterName}`, index);
+
+            // ⭐️⭐️⭐️ START OF MODIFIED CODE ⭐️⭐️⭐️
+            localStorage.setItem(`lastIndex_${interpreterName}`, index); // Save current index
+            // ⭐️⭐️⭐️  END OF MODIFIED CODE  ⭐️⭐️⭐️
+
             const task = allTasks[currentTaskIndex];
 
             document.querySelectorAll('.nav-item').forEach((item, i) => {
@@ -238,11 +247,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
-                if (response.status === 401) {
-                    handleUnauthorized();
-                    return;
-                }
                 
                 if (!response.ok) {
                     let errorDetail = `Server responded with status ${response.status}`;
@@ -266,6 +270,7 @@
                 } else {
                     alert("ยินดีด้วย! คุณทำงานทั้งหมดเสร็จแล้ว");
                 }
+
             } catch (error) {
                 console.error("Error saving task:", error);
                 alert("เกิดข้อผิดพลาดในการบันทึก: " + error.message);
@@ -280,61 +285,48 @@
                 loadTask(currentTaskIndex - 1);
             }
         }
-        
+
         loginBtn.onclick = login;
         interpreterNameInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') login(); });
         passwordInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') login(); });
         nextBtn.onclick = saveAndNext;
         prevBtn.onclick = navigateBack;
 
-        // Speech Recognition
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
             recognition.lang = 'th-TH';
-            recognition.interimResults = false;
-            // === FIX #3: Set continuous to false for auto-stop ===
-            recognition.continuous = false; 
+            recognition.interimResults = false; // ไม่ต้องแสดงผลระหว่างพูด
+            recognition.continuous = false; // 🛑 หยุดอัดอัตโนมัติเมื่อพูดจบ
 
             recordBtn.onclick = () => {
                 if (recordBtn.classList.contains('recording')) {
-                    recognition.stop();
+                    recognition.stop(); // เผื่อไว้กดยกเลิกกลางคัน
                 } else {
                     recognition.start();
                 }
             };
+
             recognition.onstart = () => {
                 recordBtn.classList.add('recording');
-                recordBtn.textContent = '🛑 หยุดพูด';
+                recordBtn.textContent = '🛑 กำลังฟัง...';
             };
+
             recognition.onend = () => {
                 recordBtn.classList.remove('recording');
                 recordBtn.textContent = '🎤 พูด';
             };
+            
             recognition.onresult = (event) => {
-                // Append the result to existing text
                 const transcript = event.results[0][0].transcript;
+                // นำข้อความที่ได้มาต่อท้ายของเดิม
                 translationInput.value += transcript;
             };
+
         } else {
             recordBtn.textContent = 'เบราว์เซอร์ไม่รองรับ';
             recordBtn.disabled = true;
         }
-
-        // Check for existing session on page load
-        window.onload = () => {
-            const storedToken = localStorage.getItem('sessionToken');
-            const storedName = localStorage.getItem('interpreterName');
-            if (storedToken && storedName) {
-                sessionToken = storedToken;
-                interpreterName = storedName;
-                loginContainer.classList.add('hidden');
-                mainApp.classList.remove('hidden');
-                mainApp.style.display = 'flex';
-                loadAllTasks();
-            }
-        };
-
     </script>
 </body>
 </html>

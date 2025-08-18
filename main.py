@@ -168,8 +168,7 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
 
         new_status = "แปลแล้ว" if save_req.translation.strip() else ""
 
-        worksheet.update_cell(row_index, col_translation, save_req.translation)
-        worksheet.update_cell(row_index, col_status, new_status)
+        worksheet.update_cell(row_index, col_translation, new_status)
         worksheet.update_cell(row_index, col_interpreter, save_req.interpreter_name)
 
         return {"success": True, "message": "Data saved successfully."}
@@ -179,3 +178,5 @@ def save_task(save_req: SaveRequest, token: str = Depends(get_current_user)):
     except Exception as e:
         logging.error(f"Error saving task: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save data: {e}")
+
+# Removed app.mount("/static", StaticFiles(directory="static"), name="static")

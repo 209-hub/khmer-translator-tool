@@ -96,9 +96,13 @@ def serve_index():
 
 @app.get("/get-all-tasks")
 def get_all_tasks(token: str = Depends(get_current_user)):
-    interpreter_name = token  # The dependency returns the interpreter name
+    interpreter_name = token
     try:
         df = pd.DataFrame(worksheet.get_all_records())
+        # เพิ่มบรรทัดนี้เพื่อแปลงคอลัมน์ 'คำแปล' เป็น string เสมอ
+        if 'คำแปล' in df.columns:
+            df['คำแปล'] = df['คำแปล'].astype(str)
+        # ...
         if 'ผู้แปล' in df.columns:
             df['ผู้แปล'] = df['ผู้แปล'].astype(str).str.strip()
         else:

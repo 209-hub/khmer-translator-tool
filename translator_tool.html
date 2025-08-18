@@ -2,15 +2,16 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>เครื่องมือช่วยแปลเสียง</title>
+    <title>เครื่องมือช่วยล่ามแปลเสียง</title>
     <style>
-        body { font-family: Tahoma, sans-serif; margin: 0; background-color: #f4f4f9; display: flex; flex-direction: column; }
+        body { font-family: Tahoma, sans-serif; margin: 0; background-color: #f4f4f9; display: flex; flex-direction: column; height: 100vh; }
         .main-content {
             flex-grow: 1;
             padding: 2em;
             box-sizing: border-box;
             max-width: 800px;
             margin: auto;
+            overflow-y: auto; /* Allow content to scroll if needed */
         }
         .container {
             background: white;
@@ -33,22 +34,31 @@
         #progress { font-size: 1.2em; font-weight: bold; }
         .hidden { display: none; }
 
-        /* New styling for bottom navigation */
         .bottom-nav {
             background: #fff;
             padding: 10px;
             box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
-            overflow-x: auto;
-            white-space: nowrap;
-            text-align: center;
+            overflow-y: auto; /* Enable vertical scrolling */
+            max-height: 150px; /* Adjust height as needed */
+            flex-shrink: 0; /* Prevent the nav from shrinking */
+        }
+        .nav-item-container {
+            display: grid;
+            grid-template-columns: repeat(100, 1fr); /* Create 100 columns */
+            gap: 2px; /* Space between items */
+            justify-content: center;
         }
         .nav-item {
-            display: inline-block;
-            padding: 8px 12px;
+            padding: 4px;
             border: 1px solid #eee;
-            margin: 0 5px;
             cursor: pointer;
-            border-radius: 5px;
+            border-radius: 3px;
+            font-size: 0.75em; /* Smaller font size */
+            text-align: center;
+            box-sizing: border-box;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .nav-item:hover { background-color: #f0f0f0; }
         .nav-item.active { background-color: #e0f7fa; font-weight: bold; }
@@ -64,10 +74,10 @@
         <p id="login-error" style="color: red;"></p>
     </div>
 
-    <div id="main-app" class="hidden">
+    <div id="main-app" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
         <div class="main-content">
             <div class="container">
-                <h1>เครื่องมือช่วยแปลเสียง</h1>
+                <h1>เครื่องมือช่วยล่ามแปลเสียง</h1>
                 <h3 id="progress">กำลังโหลด...</h3>
                 <p><strong>ชื่อไฟล์:</strong> <span id="filename-display"></span></p>
                 <p><strong>ความยาว:</strong> <span id="duration-display"></span> วินาที</p>
@@ -81,7 +91,9 @@
             </div>
         </div>
         <div id="bottom-nav" class="bottom-nav">
-            </div>
+            <div id="nav-item-container" class="nav-item-container">
+                </div>
+        </div>
     </div>
 
     <script>
@@ -97,8 +109,7 @@
         const loginBtn = document.getElementById('login-btn');
         const loginError = document.getElementById('login-error');
 
-        const fileCountDisplay = document.getElementById('file-count-display');
-        const bottomNav = document.getElementById('bottom-nav');
+        const navItemContainer = document.getElementById('nav-item-container');
         const progressEl = document.getElementById('progress');
         const filenameEl = document.getElementById('filename-display');
         const durationEl = document.getElementById('duration-display');
@@ -114,9 +125,9 @@
                 const response = await fetch('/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        interpreter_name: interpreterNameInput.value, 
-                        password: passwordInput.value 
+                    body: JSON.stringify({
+                        interpreter_name: interpreterNameInput.value,
+                        password: passwordInput.value
                     })
                 });
                 const data = await response.json();
@@ -126,9 +137,10 @@
                 localStorage.setItem('sessionToken', sessionToken);
                 localStorage.setItem('interpreterName', interpreterName);
                 loginContainer.classList.add('hidden');
-                mainApp.classList.remove('hidden');
+                mainApp.style.display = 'flex';
                 loadAllTasks();
-            } catch (error) {
+            } catch (error)
+                {
                 loginError.textContent = error.message;
             }
         }
@@ -140,7 +152,16 @@
                 const data = await response.json();
                 allTasks = data.tasks;
                 renderBottomNav();
-                loadTask(0);
+
+                if (allTasks.length > 0) {
+                    // ⭐️⭐️⭐️ START OF MODIFIED CODE ⭐️⭐️⭐️
+                    const lastIndex = localStorage.getItem(`lastIndex_${interpreterName}`);
+                    const startIndex = lastIndex ? parseInt(lastIndex, 10) : 0;
+                    loadTask(startIndex);
+                    // ⭐️⭐️⭐️  END OF MODIFIED CODE  ⭐️⭐️⭐️
+                } else {
+                    progressEl.textContent = "ไม่พบงานที่ได้รับมอบหมาย";
+                }
             } catch (error) {
                 console.error("Error loading tasks:", error);
                 alert("เกิดข้อผิดพลาดในการโหลดงาน: " + error.message);
@@ -148,47 +169,48 @@
         }
 
         function renderBottomNav() {
-            bottomNav.innerHTML = '';
+            navItemContainer.innerHTML = '';
             allTasks.forEach((task, index) => {
-                const navItem = document.createElement('span');
+                const navItem = document.createElement('div');
                 navItem.className = `nav-item ${task.สถานะ === 'แปลแล้ว' ? 'completed' : ''}`;
                 navItem.textContent = `${index + 1}`;
                 navItem.onclick = () => { loadTask(index); };
-                bottomNav.appendChild(navItem);
+                navItemContainer.appendChild(navItem);
             });
         }
 
         function loadTask(index) {
             if (index < 0 || index >= allTasks.length) return;
             currentTaskIndex = index;
+
+            // ⭐️⭐️⭐️ START OF MODIFIED CODE ⭐️⭐️⭐️
+            localStorage.setItem(`lastIndex_${interpreterName}`, index); // Save current index
+            // ⭐️⭐️⭐️  END OF MODIFIED CODE  ⭐️⭐️⭐️
+
             const task = allTasks[currentTaskIndex];
-            
-            // Highlight active file in navigation
-            const items = bottomNav.querySelectorAll('.nav-item');
-            items.forEach((item, i) => {
+
+            document.querySelectorAll('.nav-item').forEach((item, i) => {
                 item.classList.remove('active');
-                if (i === index) item.classList.add('active');
+                if (i === index) {
+                    item.classList.add('active');
+                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
             });
 
             progressEl.textContent = `ไฟล์ที่ ${currentTaskIndex + 1} / ${allTasks.length}`;
             filenameEl.textContent = task.ชื่อไฟล์;
             durationEl.textContent = task['ความยาว(วินาที)'];
             translationInput.value = task.คำแปล || '';
-            
-            // --- ⭐️⭐️⭐️ START OF MODIFIED CODE ⭐️⭐️⭐️ ---
-            const publicBucketUrl = 'https://pub-b47fc63dcc3444b1aac8e0869f77cd50.r2.dev';
 
-            if(task.ชื่อไฟล์) {
-                // Create the URL by combining the R2 Public URL with the filename
-                audioPlayer.src = `${publicBucketUrl}/${task.ชื่อไฟล์}`; 
-                console.log("Loading audio from:", audioPlayer.src); // For debugging to check if the URL is correct
+            const publicBucketUrl = 'https://pub-b47fc63dcc3444b1aac8e0869f77cd50.r2.dev';
+            if (task.ชื่อไฟล์) {
+                audioPlayer.src = `${publicBucketUrl}/${task.ชื่อไฟล์}`;
                 audioPlayer.load();
-                audioPlayer.play(); // Play audio automatically
+                audioPlayer.play();
             } else {
                 console.error("Missing filename for task at index", index);
                 alert(`ไม่พบชื่อไฟล์สำหรับงานลำดับที่ ${index + 1}`);
             }
-            // --- ⭐️⭐️⭐️  END OF MODIFIED CODE  ⭐️⭐️⭐️ ---
         }
 
         async function saveAndNext() {
@@ -205,25 +227,29 @@
             };
             
             try {
-                const response = await fetch('/save-task', {
+                const response = await fetch(`/save-task?token=${sessionToken}`, {
                     method: 'POST',
-                    headers: { 
-                        'Authorization': `Bearer ${sessionToken}`, 
-                        'Content-Type': 'application/json' 
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+                
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || `Server responded with status ${response.status}`);
+                    let errorDetail = `Server responded with status ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        errorDetail = errorData.detail || errorDetail;
+                    } catch (e) {
+                         const textResponse = await response.text();
+                         console.error("Non-JSON response from server:", textResponse);
+                         throw new Error(`เกิดข้อผิดพลาดในการบันทึก: เซิร์ฟเวอร์มีปัญหา`);
+                    }
+                    throw new Error(errorDetail);
                 }
                 
-                // Update local task status
                 task.คำแปล = translationText;
                 task.สถานะ = translationText ? 'แปลแล้ว' : '';
                 renderBottomNav();
 
-                // Load next task
                 if (currentTaskIndex < allTasks.length - 1) {
                     loadTask(currentTaskIndex + 1);
                 } else {
@@ -240,7 +266,9 @@
         }
 
         function navigateBack() {
-            loadTask(currentTaskIndex - 1);
+            if (currentTaskIndex > 0) {
+                loadTask(currentTaskIndex - 1);
+            }
         }
 
         loginBtn.onclick = login;
@@ -249,23 +277,50 @@
         nextBtn.onclick = saveAndNext;
         prevBtn.onclick = navigateBack;
 
-        // Speech Recognition
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
             recognition.lang = 'th-TH';
-            recognition.interimResults = false;
-            recordBtn.onclick = () => {
-                if (recordBtn.classList.contains('recording')) recognition.stop();
-                else recognition.start();
-            };
-            recognition.onstart = () => { recordBtn.classList.add('recording'); recordBtn.textContent = '🛑 หยุดพูด'; };
-            recognition.onend = () => { recordBtn.classList.remove('recording'); recordBtn.textContent = '🎤 พูด'; };
-            recognition.onresult = (event) => { translationInput.value = event.results[0][0].transcript; };
-        } else {
-            recordBtn.textContent = 'เบราว์เซอร์ไม่รองรับ'; recordBtn.disabled = true;
-        }
+            recognition.interimResults = true; // Show results as you speak
+            recognition.continuous = true; // Keep listening
 
+            let final_transcript = '';
+
+            recordBtn.onclick = () => {
+                if (recordBtn.classList.contains('recording')) {
+                    recognition.stop();
+                } else {
+                    final_transcript = translationInput.value;
+                    recognition.start();
+                }
+            };
+
+            recognition.onstart = () => {
+                recordBtn.classList.add('recording');
+                recordBtn.textContent = '🛑 หยุดพูด';
+            };
+
+            recognition.onend = () => {
+                recordBtn.classList.remove('recording');
+                recordBtn.textContent = '🎤 พูด';
+            };
+            
+            recognition.onresult = (event) => {
+                let interim_transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final_transcript += event.results[i][0].transcript;
+                    } else {
+                        interim_transcript += event.results[i][0].transcript;
+                    }
+                }
+                translationInput.value = final_transcript + interim_transcript;
+            };
+
+        } else {
+            recordBtn.textContent = 'เบราว์เซอร์ไม่รองรับ';
+            recordBtn.disabled = true;
+        }
     </script>
 </body>
 </html>

@@ -262,7 +262,6 @@
                 item.classList.remove('active');
                 if (i === index) {
                     item.classList.add('active');
-                    // ⭐️⭐️⭐️ แก้ไขการเลื่อนหน้าจอ: เลื่อนไปที่ main-content แทนที่จะเป็น nav-item
                     mainApp.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             });
@@ -276,7 +275,8 @@
             if (task.ชื่อไฟล์) {
                 audioPlayer.src = `${publicBucketUrl}/${task.ชื่อไฟล์}`;
                 audioPlayer.load();
-                audioPlayer.pause(); // หยุดเล่นอัตโนมัติ
+                // ✅ แก้ไขส่วนนี้เพื่อให้เล่นอัตโนมัติ
+                audioPlayer.play();
             } else {
                 console.error("Missing filename for task at index", index);
                 alert(`ไม่พบชื่อไฟล์สำหรับงานลำดับที่ ${index + 1}`);

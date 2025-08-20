@@ -19,7 +19,7 @@
             padding: 1em;
             box-sizing: border-box;
             max-width: 800px;
-            width: 100%; /* ทำให้เต็มหน้าจอ */
+            width: 100%;
             margin: auto;
             overflow-y: auto;
             display: flex;
@@ -27,7 +27,7 @@
             justify-content: center;
             align-items: center;
             text-align: center;
-            padding-top: 2em; /* เพิ่มระยะห่างด้านบน */
+            padding-top: 2em;
         }
         .container {
             background: white;
@@ -65,24 +65,39 @@
         }
 
         button {
-            padding: 15px; /* ทำให้ปุ่มใหญ่ขึ้น */
+            padding: 15px;
             font-size: 1.1em;
-            width: 90%; /* ทำให้ปุ่มเต็มความกว้าง */
-            margin: 10px auto; /* แยกปุ่มแต่ละอัน */
+            width: 90%;
+            margin: 10px auto;
             cursor: pointer;
             border-radius: 5px;
             border: 1px solid #ccc;
-            display: block; /* ทำให้แต่ละปุ่มอยู่คนละบรรทัด */
+            display: block;
         }
 
         #login-btn { background-color: #2ecc71; color: white; }
         #play-btn { background-color: #3498db; color: white; }
         #record-btn { background-color: #e74c3c; color: white; }
         #record-btn.recording { background-color: #c0392b; }
+        #no-speech-btn { background-color: #f39c12; color: white; }
+
+        /* ปรับเลย์เอาต์สำหรับปุ่มใหม่ */
+        .button-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px auto;
+            width: 90%;
+        }
+
+        .button-row button {
+            margin: 0;
+            width: 100%;
+        }
         
         #nav-btn-container {
             display: flex;
-            flex-direction: column; /* เรียงปุ่มลงมาเป็นแนวตั้ง */
+            flex-direction: column;
             align-items: center;
             width: 100%;
         }
@@ -153,9 +168,15 @@
                 <textarea id="translation-input" rows="4" placeholder="คลิกปุ่ม 'พูด' แล้วเริ่มพูดคำแปล...หากไม่มีเสียงให้พิมพ์ -"></textarea>
                 <div id="nav-btn-container">
                     <button id="play-btn">▶ เล่นเสียง</button>
-                    <button id="prev-btn">◀ ก่อนหน้า</button>
+                    <div class="button-row">
+                        <button id="prev-btn">◀ ก่อนหน้า</button>
+                        <button id="fast-next-btn">ถัดไป ▶</button>
+                    </div>
                     <button id="record-btn">🎤 พูด</button>
-                    <button id="next-btn">บันทึก/ต่อไป ▶</button>
+                    <div class="button-row">
+                        <button id="no-speech-btn">ไม่มีเสียงพูด</button>
+                        <button id="next-btn">บันทึก/ต่อไป ▶</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -185,11 +206,13 @@
         const audioPlayer = document.getElementById('audio-player');
         const translationInput = document.getElementById('translation-input');
         const prevBtn = document.getElementById('prev-btn');
-        const nextBtn = document.getElementById('next-btn');
+        const fastNextBtn = document.getElementById('fast-next-btn'); // ปุ่มถัดไปแบบไม่บันทึก
+        const nextBtn = document.getElementById('next-btn'); // ปุ่มบันทึก/ต่อไป
         const recordBtn = document.getElementById('record-btn');
         const playBtn = document.getElementById('play-btn');
+        const noSpeechBtn = document.getElementById('no-speech-btn'); // ปุ่มไม่มีเสียงพูด
 
-         document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', () => {
             mainApp.classList.add('hidden');
         });
 
@@ -213,8 +236,7 @@
                 loginContainer.classList.add('hidden');
                 mainApp.style.display = 'flex';
                 loadAllTasks();
-            } catch (error)
-                {
+            } catch (error) {
                 loginError.textContent = error.message;
             }
         }
@@ -275,7 +297,6 @@
             if (task.ชื่อไฟล์) {
                 audioPlayer.src = `${publicBucketUrl}/${task.ชื่อไฟล์}`;
                 audioPlayer.load();
-                // ✅ แก้ไขส่วนนี้เพื่อให้เล่นอัตโนมัติ
                 audioPlayer.play();
             } else {
                 console.error("Missing filename for task at index", index);
@@ -335,6 +356,20 @@
             }
         }
 
+        // เพิ่มฟังก์ชันสำหรับปุ่ม "ถัดไป" แบบไม่บันทึก
+        function fastNext() {
+            if (currentTaskIndex < allTasks.length - 1) {
+                loadTask(currentTaskIndex + 1);
+            } else {
+                alert("คุณอยู่ที่ไฟล์สุดท้ายแล้ว!");
+            }
+        }
+        
+        // เพิ่มฟังก์ชันสำหรับปุ่ม "ไม่มีเสียงพูด"
+        function handleNoSpeech() {
+            translationInput.value = '-';
+        }
+
         function navigateBack() {
             if (currentTaskIndex > 0) {
                 loadTask(currentTaskIndex - 1);
@@ -346,6 +381,8 @@
         passwordInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') login(); });
         nextBtn.onclick = saveAndNext;
         prevBtn.onclick = navigateBack;
+        fastNextBtn.onclick = fastNext; // ผูกฟังก์ชันเข้ากับปุ่มใหม่
+        noSpeechBtn.onclick = handleNoSpeech; // ผูกฟังก์ชันเข้ากับปุ่มใหม่
         playBtn.onclick = () => {
             audioPlayer.play();
         };
